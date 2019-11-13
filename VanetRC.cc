@@ -40,9 +40,9 @@ class RoutingExample{
   private:
     // parameters
     /// Number of nodes
-    uint32_t size = 35;
+    uint32_t size = 20;
     /// Distance between nodes, meters
-    double step = 50;
+    double step = 25;
     /// Simulation time, seconds
     double totalTime = 100;
     /// Write per-device PCAP traces if true
@@ -54,12 +54,9 @@ class RoutingExample{
     double packet_size = 1024;
 
     //Routing Method
-    //AodvHelper routing;
-    OlsrHelper routing;
+    AodvHelper routing;
+    //OlsrHelper routing;
     //DsdvHelper routing;
-    //DsrHelper routing;
-    //DsrMainHelper dsrMain;
-    //dsrMain.Install(routing,nodes);
     // you can configure AODV attributes here using aodv.Set(name, value)
 
   // network
@@ -153,6 +150,9 @@ RoutingExample::installInternetStack(){
   InternetStackHelper stack;
   stack.SetRoutingHelper (routing); // has effect on the next Install ()
   stack.Install (nodes);
+  if(pcap){
+    stack.EnablePcapIpv4All ("xml/pcap/internet"); // gets pcap files of all nodes
+  }
   Ipv4AddressHelper address;
   address.SetBase ("10.0.0.0", "255.0.0.0");
   interfaces = address.Assign (devices);
@@ -161,28 +161,10 @@ RoutingExample::installInternetStack(){
 void 
 RoutingExample::installApplications(){
 
-/*
-  UdpEchoServerHelper echoServer(9);
-
-  ApplicationContainer serverApps = echoServer.Install (nodes.Get(0));
-  serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (10.0));
-
-  UdpEchoClientHelper echoClient (interfaces.GetAddress(0), 9);
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (15));
-  echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
-  echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
-//  echoClient.SetAttribute ("Verbose", BooleanValue (true));
-
-  ApplicationContainer clientApps = echoClient.Install (nodes.Get (19));
-  clientApps.Start (Seconds (2.0));
-  clientApps.Stop (Seconds (10.0));
-*/
-
   V4PingHelper ping (interfaces.GetAddress (size - 1));
   ping.SetAttribute ("Verbose", BooleanValue (true));
-
-  ApplicationContainer p = ping.Install (nodes.Get (0));
+  
+  ApplicationContainer p = ping.Install (nodes.Get (2));
   p.Start (Seconds (5));
   p.Stop (Seconds (totalTime) - Seconds (0.001));
 
