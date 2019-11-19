@@ -44,7 +44,7 @@ class RoutingExample{
     /// Distance between nodes, meters
     double step = 25;
     /// Simulation time, seconds
-    double totalTime = 100;
+    double totalTime = 10;
     /// Write per-device PCAP traces if true
     bool pcap = 1;
     /// Print routes if true
@@ -161,12 +161,13 @@ RoutingExample::installInternetStack(){
 void 
 RoutingExample::installApplications(){
 
-  V4PingHelper ping (interfaces.GetAddress (size - 1));
+  V4PingHelper ping (interfaces.GetAddress (16));
   ping.SetAttribute ("Verbose", BooleanValue (true));
+  ping.SetAttribute ("Size", UintegerValue(packet_size));
   
-  ApplicationContainer p = ping.Install (nodes.Get (2));
+  ApplicationContainer p = ping.Install (nodes.Get (0));
   p.Start (Seconds (5));
-  p.Stop (Seconds (totalTime) - Seconds (0.001));
+  p.Stop (Seconds (totalTime));
 
 };
 
