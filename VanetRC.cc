@@ -28,13 +28,13 @@
 #include "ns3/netanim-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/ssid.h"
+#include "ns3/packet-sink.h"
+#include "ns3/packet-sink-helper.h"
 
 using namespace ns3;
 
 class RoutingExample{
   public:
-    //RoutingExample ();
-
     void run();
 
   private:
@@ -46,12 +46,17 @@ class RoutingExample{
     /// Simulation time, seconds
     double totalTime = 10;
     /// Write per-device PCAP traces if true
-    bool pcap = 1;
+    bool pcap = true;
     /// Print routes if true
-    bool printRoutes = 1;
-
+    bool printRoutes = true;
     ///Size of Packet, bytes
     double packet_size = 1024;
+    //Internet Stack Helper
+    InternetStackHelper stack;
+    //Pointer to the packet sink application 
+    Ptr<PacketSink> sink;
+    //The value of the last total received bytes
+    uint64_t lastTotalRx = 0;
 
     //Routing Method
     AodvHelper routing;
@@ -78,6 +83,10 @@ class RoutingExample{
     void installApplications ();
     // Saves all nodes' routing tables in a txt file
     void printingRoutingTable ();
+    // Saves all nodes' pcap tracing file
+    void enablePcapTracing ();
+    // Calculate the throughput of network
+    void calculateThroughput();
 };
 
 int
@@ -99,12 +108,15 @@ RoutingExample::run(){
   createDevices();
   installInternetStack();
   installApplications();
-  printingRoutingTable();
+  if(pcap) enablePcapTracing();
+  if(printRoutes) printingRoutingTable();
+  
 
   AnimationInterface anim (animFile);
   //anim.SetStartTime (Seconds(0.0));
   //anim.SetStopTime (Seconds(10.0));
 
+  
   Simulator::Stop (Seconds (60.0));
   Simulator::Run ();
   Simulator::Destroy ();
@@ -146,13 +158,8 @@ RoutingExample::createDevices(){
 
 void
 RoutingExample::installInternetStack(){
-
-  InternetStackHelper stack;
   stack.SetRoutingHelper (routing); // has effect on the next Install ()
   stack.Install (nodes);
-  if(pcap){
-    stack.EnablePcapIpv4All ("xml/pcap/internet"); // gets pcap files of all nodes
-  }
   Ipv4AddressHelper address;
   address.SetBase ("10.0.0.0", "255.0.0.0");
   interfaces = address.Assign (devices);
@@ -164,10 +171,15 @@ RoutingExample::installApplications(){
   V4PingHelper ping (interfaces.GetAddress (16));
   ping.SetAttribute ("Verbose", BooleanValue (true));
   ping.SetAttribute ("Size", UintegerValue(packet_size));
-  
+
+  PacketSinkHelper sinkHelper("ns3::TcpSocketFactory",  InetSocketAddress (Ipv4Address::GetAny (), 9));
+  ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
+  sink = StaticCast<PacketSink> (sinkApp.Get (0));
+
   ApplicationContainer p = ping.Install (nodes.Get (0));
+  
+  sinkApp.Start (Seconds (4));
   p.Start (Seconds (5));
-  p.Stop (Seconds (totalTime));
 
 };
 
@@ -178,4 +190,21 @@ RoutingExample::printingRoutingTable(){
   Ptr<OutputStreamWrapper> rtw = ascii.CreateFileStream ("xml/routing_table");
 
   routing.PrintRoutingTableAllAt(rtt,rtw);
+
 };
+
+void
+RoutingExample::enablePcapTracing(){
+  stack.EnablePcapIpv4All ("xml/pcap/internet"); // gets pcap files of all nodes
+}
+
+void
+RoutingExample::calculateThroughput(){
+  
+  Time now = Simulator::Now ();                                         // Return the simulator's virtual time.
+  double cur = (sink->GetTotalRx () - lastTotalRx) * (double) 8 / 1e5;     // Convert Application RX Packets to MBits.
+  std::cout << now.GetSeconds () << "s: \t" << cur << " Mbit/s" << std::endl;
+  lastTotalRx = sink->GetTotalRx ();
+  //Simulator::Schedule (MilliSeconds (100), &RoutingExample::calculateThroughput);
+  
+}
