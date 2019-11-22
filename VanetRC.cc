@@ -111,14 +111,13 @@ RoutingExample::run(){
   if(pcap) enablePcapTracing();
   if(printRoutes) printingRoutingTable();
   
-
   AnimationInterface anim (animFile);
   //anim.SetStartTime (Seconds(0.0));
   //anim.SetStopTime (Seconds(10.0));
 
-  
-  Simulator::Stop (Seconds (60.0));
+  Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
+  std::cout << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
   Simulator::Destroy ();
 };
 
@@ -167,19 +166,26 @@ RoutingExample::installInternetStack(){
 
 void 
 RoutingExample::installApplications(){
+  
+  UdpEchoServerHelper echoServer (9);
 
-  V4PingHelper ping (interfaces.GetAddress (16));
-  ping.SetAttribute ("Verbose", BooleanValue (true));
-  ping.SetAttribute ("Size", UintegerValue(packet_size));
+  ApplicationContainer serverApps = echoServer.Install (nodes.Get (0));
+  serverApps.Start (Seconds (2.0));
+  serverApps.Stop (Seconds (totalTime));
 
-  PacketSinkHelper sinkHelper("ns3::TcpSocketFactory",  InetSocketAddress (Ipv4Address::GetAny (), 9));
+  UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
+  echoClient.SetAttribute ("MaxPackets", UintegerValue (20));
+  echoClient.SetAttribute ("Interval", TimeValue (MilliSeconds (100.0)));
+  echoClient.SetAttribute ("PacketSize", UintegerValue (2048));
+
+  ApplicationContainer clientApps = echoClient.Install (nodes.Get (12));
+  clientApps.Start (Seconds (2.0));
+  clientApps.Stop (Seconds (totalTime));
+
+  PacketSinkHelper sinkHelper("ns3::SocketFactory",  InetSocketAddress (interfaces.GetAddress (0), 9));
   ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
   sink = StaticCast<PacketSink> (sinkApp.Get (0));
-
-  ApplicationContainer p = ping.Install (nodes.Get (0));
-  
-  sinkApp.Start (Seconds (4));
-  p.Start (Seconds (5));
+  sinkApp.Start (Seconds (1));
 
 };
 
