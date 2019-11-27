@@ -170,22 +170,27 @@ RoutingExample::installApplications(){
   UdpEchoServerHelper echoServer (9);
 
   ApplicationContainer serverApps = echoServer.Install (nodes.Get (0));
+
+  UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
+  echoClient.SetAttribute ("MaxPackets", UintegerValue (50));
+  echoClient.SetAttribute ("Interval", TimeValue (MilliSeconds (500)));
+  echoClient.SetAttribute ("PacketSize", UintegerValue (512));
+
+  ApplicationContainer clientApps = echoClient.Install (nodes.Get (12));
+
+  PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (0), 9));
+  ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
+
+
   serverApps.Start (Seconds (2.0));
   serverApps.Stop (Seconds (totalTime));
 
-  UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (20));
-  echoClient.SetAttribute ("Interval", TimeValue (MilliSeconds (100.0)));
-  echoClient.SetAttribute ("PacketSize", UintegerValue (2048));
-
-  ApplicationContainer clientApps = echoClient.Install (nodes.Get (12));
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (totalTime));
 
-  PacketSinkHelper sinkHelper("ns3::SocketFactory",  InetSocketAddress (interfaces.GetAddress (0), 9));
-  ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
   sink = StaticCast<PacketSink> (sinkApp.Get (0));
-  sinkApp.Start (Seconds (1));
+  sinkApp.Start (Seconds (0));
+  sinkApp.Stop(Seconds(totalTime));
 
 };
 
