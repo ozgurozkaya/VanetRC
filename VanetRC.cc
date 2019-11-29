@@ -33,6 +33,8 @@
 
 using namespace ns3;
 
+NS_LOG_COMPONENT_DEFINE ("VanetRC");
+
 class RoutingExample{
   public:
     void run();
@@ -92,6 +94,10 @@ class RoutingExample{
 int
 main (int argc, char *argv[])
 {
+  // Enable logging for UdpClient and
+  LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
+  LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
+ 
   CommandLine cmd;
   cmd.Parse (argc, argv);
 
@@ -117,7 +123,7 @@ RoutingExample::run(){
 
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
-  std::cout << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
+  std::cout << "Throughput: \t" << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
   Simulator::Destroy ();
 };
 
@@ -168,7 +174,7 @@ void
 RoutingExample::installApplications(){
   
   UdpEchoServerHelper echoServer (9);
-
+  
   ApplicationContainer serverApps = echoServer.Install (nodes.Get (0));
 
   UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
