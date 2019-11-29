@@ -51,8 +51,10 @@ class RoutingExample{
     bool pcap = true;
     /// Print routes if true
     bool printRoutes = true;
-    ///Size of Packet, bytes
-    double packet_size = 1024;
+    ///Size of Packet (bytes), Packet interval (Time), Max Packets
+    double packet_size = 512;
+    Time packet_interval = MilliSeconds (500);
+    double max_packets = 50;
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
@@ -123,7 +125,8 @@ RoutingExample::run(){
 
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
-  std::cout << "Throughput: \t" << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
+  std::cout << "Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
+  std::cout << "Throughput: \t\t" << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
   Simulator::Destroy ();
 };
 
@@ -178,9 +181,9 @@ RoutingExample::installApplications(){
   ApplicationContainer serverApps = echoServer.Install (nodes.Get (0));
 
   UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (50));
-  echoClient.SetAttribute ("Interval", TimeValue (MilliSeconds (500)));
-  echoClient.SetAttribute ("PacketSize", UintegerValue (512));
+  echoClient.SetAttribute ("MaxPackets", UintegerValue (max_packets));
+  echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
+  echoClient.SetAttribute ("PacketSize", UintegerValue (packet_size));
 
   ApplicationContainer clientApps = echoClient.Install (nodes.Get (12));
 
@@ -188,14 +191,14 @@ RoutingExample::installApplications(){
   ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
 
 
-  serverApps.Start (Seconds (2.0));
+  serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (totalTime));
 
-  clientApps.Start (Seconds (2.0));
+  clientApps.Start (Seconds (1.0));
   clientApps.Stop (Seconds (totalTime));
 
   sink = StaticCast<PacketSink> (sinkApp.Get (0));
-  sinkApp.Start (Seconds (0));
+  sinkApp.Start (Seconds (1.0));
   sinkApp.Stop(Seconds(totalTime));
 
 };
