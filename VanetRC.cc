@@ -42,9 +42,9 @@ class RoutingExample{
   private:
     // parameters
     /// Number of nodes
-    uint32_t size = 20;
+    uint32_t size = 25;
     /// Distance between nodes, meters
-    double step = 25;
+    //double step = 25;
     /// Simulation time, seconds
     double totalTime = 10;
     /// Write per-device PCAP traces if true
@@ -141,13 +141,15 @@ RoutingExample::createNodes(int i){
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
   "MinX", DoubleValue (0.0),
   "MinY", DoubleValue (0.0),
-  "DeltaX", DoubleValue (step),
-  "DeltaY", DoubleValue (50),
-  "GridWidth", UintegerValue (7),
+  "DeltaX", DoubleValue (65),
+  "DeltaY", DoubleValue (65),
+  "GridWidth", UintegerValue (5),
   "LayoutType", StringValue ("RowFirst"));
 
-  mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
-  "Bounds", RectangleValue (Rectangle (-10000,10000,-10000,10000)));
+  //mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+  //"Bounds", RectangleValue (Rectangle (-10000,10000,-10000,10000)));
+
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
   mobility.Install (nodes);
 };
@@ -158,9 +160,27 @@ RoutingExample::createDevices(){
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
+  wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
+  
+  //Ekleyince çalışmıyor !!!!
+  //wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent", StringValue ("2.7"));
+
+
+  wifiPhy.Set ("TxGain", DoubleValue (1.0) );
+  wifiPhy.Set ("RxGain", DoubleValue (1.0) );
+  wifiPhy.Set ("TxPowerLevels", UintegerValue (1) );
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (18) );
+  wifiPhy.Set ("TxPowerStart", DoubleValue (18) );
+  wifiPhy.Set ("RxNoiseFigure", DoubleValue (7.0) );
   wifiPhy.SetChannel (wifiChannel.Create ());
+  
   WifiHelper wifi;
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (0));
+
+  //WifiHelper wifi;
+  //wifi.SetStandard (WIFI_PHY_STANDARD_80211a);
+  //wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode",
+  //  StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (2500));
   devices = wifi.Install (wifiPhy, wifiMac, nodes); 
 };
 
