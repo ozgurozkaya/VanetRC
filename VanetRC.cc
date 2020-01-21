@@ -120,6 +120,8 @@ RoutingExample::run(){
   if(printRoutes) printingRoutingTable();
   
   AnimationInterface anim (animFile);
+  anim.EnablePacketMetadata (); // Optional
+  anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
   //anim.SetStartTime (Seconds(0.0));
   //anim.SetStopTime (Seconds(10.0));
 
@@ -160,7 +162,7 @@ RoutingExample::createDevices(){
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
-  wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
+  //wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   
   //Ekleyince çalışmıyor !!!!
   //wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent", StringValue ("2.7"));
@@ -205,7 +207,7 @@ RoutingExample::installApplications(){
   echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
   echoClient.SetAttribute ("PacketSize", UintegerValue (packet_size));
 
-  ApplicationContainer clientApps = echoClient.Install (nodes.Get (12));
+  ApplicationContainer clientApps = echoClient.Install (nodes.Get (size-1));
 
   PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (0), 9));
   ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
