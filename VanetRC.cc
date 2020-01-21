@@ -43,6 +43,8 @@ class RoutingExample{
     // parameters
     /// Number of nodes
     uint32_t size = 25;
+    uint32_t server_node = 0;
+    uint32_t client_node = size-1;
     /// Distance between nodes, meters
     //double step = 25;
     /// Simulation time, seconds
@@ -122,6 +124,12 @@ RoutingExample::run(){
   AnimationInterface anim (animFile);
   anim.EnablePacketMetadata (); // Optional
   anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
+  anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
+  anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
+  anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
+  anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
+  anim.EnableWifiMacCounters (Seconds (0), Seconds (10)); //Optional
+  anim.EnableWifiPhyCounters (Seconds (0), Seconds (10)); //Optional
   //anim.SetStartTime (Seconds(0.0));
   //anim.SetStopTime (Seconds(10.0));
 
@@ -200,17 +208,17 @@ RoutingExample::installApplications(){
   
   UdpEchoServerHelper echoServer (9);
   
-  ApplicationContainer serverApps = echoServer.Install (nodes.Get (0));
+  ApplicationContainer serverApps = echoServer.Install (nodes.Get (server_node));
 
-  UdpEchoClientHelper echoClient (interfaces.GetAddress (0), 9);
+  UdpEchoClientHelper echoClient (interfaces.GetAddress (server_node), 9);
   echoClient.SetAttribute ("MaxPackets", UintegerValue (max_packets));
   echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
   echoClient.SetAttribute ("PacketSize", UintegerValue (packet_size));
 
-  ApplicationContainer clientApps = echoClient.Install (nodes.Get (size-1));
+  ApplicationContainer clientApps = echoClient.Install (nodes.Get (client_node));
 
-  PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (0), 9));
-  ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(0));
+  PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (server_node), 9));
+  ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(server_node));
 
 
   serverApps.Start (Seconds (1.0));
@@ -219,7 +227,7 @@ RoutingExample::installApplications(){
   clientApps.Start (Seconds (1.0));
   clientApps.Stop (Seconds (totalTime));
 
-  sink = StaticCast<PacketSink> (sinkApp.Get (0));
+  sink = StaticCast<PacketSink> (sinkApp.Get (server_node));
   sinkApp.Start (Seconds (1.0));
   sinkApp.Stop(Seconds(totalTime));
 
