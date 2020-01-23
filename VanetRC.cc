@@ -196,6 +196,13 @@ RoutingExample::createDevices(){
 
 void
 RoutingExample::installInternetStack(){
+  /*
+  routing.Set ("AllowedHelloLoss", UintegerValue (20));
+  routing.Set ("HelloInterval", TimeValue (Seconds (3)));
+  routing.Set ("RreqRetries", UintegerValue (5));
+  routing.Set ("ActiveRouteTimeout", TimeValue (Seconds (100)));
+  routing.Set ("DestinationOnly", BooleanValue (true));
+  */
   stack.SetRoutingHelper (routing); // has effect on the next Install ()
   stack.Install (nodes);
   Ipv4AddressHelper address;
