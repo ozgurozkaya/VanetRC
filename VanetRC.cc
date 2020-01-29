@@ -30,6 +30,8 @@
 #include "ns3/ssid.h"
 #include "ns3/packet-sink.h"
 #include "ns3/packet-sink-helper.h"
+#include "ns3/onoff-application.h"
+#include "ns3/random-variable-stream.h"
 
 using namespace ns3;
 
@@ -48,15 +50,15 @@ class RoutingExample{
     /// Distance between nodes, meters
     //double step = 25;
     /// Simulation time, seconds
-    double totalTime = 10;
+    double totalTime = 180;
     /// Write per-device PCAP traces if true
     bool pcap = true;
     /// Print routes if true
     bool printRoutes = true;
     ///Size of Packet (bytes), Packet interval (Time), Max Packets
-    double packet_size = 512;
-    Time packet_interval = MilliSeconds (500);
-    double max_packets = 50;
+    double packet_size = 1024;
+    Time packet_interval = MilliSeconds (1000);
+    double max_packets = 250;
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
@@ -87,6 +89,7 @@ class RoutingExample{
     void installInternetStack ();
     /// Create the simulation applications
     void installApplications ();
+    void installOnOffApplications ();
     // Saves all nodes' routing tables in a txt file
     void printingRoutingTable ();
     // Saves all nodes' pcap tracing file
@@ -128,8 +131,8 @@ RoutingExample::run(){
   anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
   anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
   anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
-  anim.EnableWifiMacCounters (Seconds (0), Seconds (10)); //Optional
-  anim.EnableWifiPhyCounters (Seconds (0), Seconds (10)); //Optional
+  anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
+  anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
   //anim.SetStartTime (Seconds(0.0));
   //anim.SetStopTime (Seconds(10.0));
 
@@ -170,8 +173,8 @@ RoutingExample::createDevices(){
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
-  //wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   
+  //wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   //Ekleyince çalışmıyor !!!!
   //wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent", StringValue ("2.7"));
 
@@ -185,24 +188,24 @@ RoutingExample::createDevices(){
   wifiPhy.SetChannel (wifiChannel.Create ());
   
   WifiHelper wifi;
+  wifi.SetStandard (WIFI_PHY_STANDARD_80211a);
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (0));
 
   //WifiHelper wifi;
   //wifi.SetStandard (WIFI_PHY_STANDARD_80211a);
-  //wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode",
-  //  StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (2500));
+  //wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", 
+  //StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (2500));
   devices = wifi.Install (wifiPhy, wifiMac, nodes); 
 };
 
 void
 RoutingExample::installInternetStack(){
-  /*
+  
   routing.Set ("AllowedHelloLoss", UintegerValue (20));
   routing.Set ("HelloInterval", TimeValue (Seconds (3)));
   routing.Set ("RreqRetries", UintegerValue (5));
   routing.Set ("ActiveRouteTimeout", TimeValue (Seconds (100)));
   routing.Set ("DestinationOnly", BooleanValue (true));
-  */
   stack.SetRoutingHelper (routing); // has effect on the next Install ()
   stack.Install (nodes);
   Ipv4AddressHelper address;
@@ -219,14 +222,13 @@ RoutingExample::installApplications(){
 
   UdpEchoClientHelper echoClient (interfaces.GetAddress (server_node), 9);
   echoClient.SetAttribute ("MaxPackets", UintegerValue (max_packets));
-  echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
+  //echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
   echoClient.SetAttribute ("PacketSize", UintegerValue (packet_size));
 
   ApplicationContainer clientApps = echoClient.Install (nodes.Get (client_node));
 
   PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (server_node), 9));
   ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(server_node));
-
 
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (totalTime));
@@ -237,6 +239,46 @@ RoutingExample::installApplications(){
   sink = StaticCast<PacketSink> (sinkApp.Get (server_node));
   sinkApp.Start (Seconds (1.0));
   sinkApp.Stop(Seconds(totalTime));
+
+};
+
+void 
+RoutingExample::installOnOffApplications(){
+  
+  int m_nconn = 625;
+  double start_time, stop_time, duration;
+
+
+  ApplicationContainer apps [m_nconn];
+
+  Ptr<UniformRandomVariable> a = CreateObject<UniformRandomVariable>();
+  a->SetAttribute("Min", DoubleValue (50));
+  a->SetAttribute("Max", DoubleValue(totalTime-15));
+
+  for (int i = 0; i < m_nconn; i++)
+  {
+    start_time = a->GetValue();
+    Ptr<ExponentialRandomVariable> b = CreateObject<ExponentialRandomVariable>();
+    b->SetAttribute("Mean", DoubleValue(30));
+    duration = b->GetValue()+1;
+
+    if ( (start_time + duration) > (totalTime - 10)){
+      stop_time = totalTime-10;
+    }else{
+      stop_time = start_time + duration;
+    }
+
+    OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (0), 9)));
+    //onoff.SetAttribute ("OnTime", DoubleValue(5));
+    //onoff.SetAttribute ("OffTime", DoubleValue(15));
+    apps[i] = onoff.Install (nodes.Get(24));
+    apps[i].Start (Seconds (start_time));
+    apps[i].Stop (Seconds (stop_time));
+    // Create a packet sink to receive the packets
+    /*PacketSinkHelper sink ("ns3::UdpSocketFactory",InetSocketAddress(interfaces.GetAddress (0), 9));
+    ApplicationContainer sinkApp  = sink.Install (nodes.Get (24));
+    sinkApp.Start (Seconds (1.0));*/
+  }
 
 };
 
