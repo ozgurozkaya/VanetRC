@@ -51,14 +51,17 @@ class RoutingExample{
     //double step = 25;
     /// Simulation time, seconds
     double totalTime = 180;
-    /// Write per-device PCAP traces if true
+    double duration;
+    /// Write per-device PCAP traces if true & net-anim file generate
     bool pcap = true;
+    bool anim = false;
     /// Print routes if true
     bool printRoutes = true;
     ///Size of Packet (bytes), Packet interval (Time), Max Packets
-    double packet_size = 1024;
+    double packet_size = 2048;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
+    StringValue data_rate = StringValue("448kb/s");
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
@@ -120,26 +123,32 @@ RoutingExample::run(){
   createNodes(size);
   createDevices();
   installInternetStack();
-  installApplications();
+  installOnOffApplications();
   if(pcap) enablePcapTracing();
   if(printRoutes) printingRoutingTable();
-  
-  AnimationInterface anim (animFile);
-  anim.EnablePacketMetadata (); // Optional
-  anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
-  anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
-  anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
-  anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
-  anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
-  anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
-  anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
-  //anim.SetStartTime (Seconds(0.0));
-  //anim.SetStopTime (Seconds(10.0));
+
+  if(anim){ 
+    AnimationInterface anim (animFile);
+    anim.EnablePacketMetadata (); // Optional
+    anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
+    anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
+    anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
+    anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
+    anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
+    anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
+    anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
+    anim.SetMaxPktsPerTraceFile(50000);
+    //anim.SetStartTime (Seconds(0.0));
+    //anim.SetStopTime (Seconds(10.0));
+  }
 
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
-  std::cout << "Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
-  std::cout << "Throughput: \t\t" << sink->GetTotalRx() / (totalTime - 2) << " Bytes/sec \n";
+  std::cout << " Packet Size: \t\t" << packet_size << " Bytes, " << packet_size / 1024 << " KiloBytes \n";
+  std::cout << " Data Rate: \t\t" << data_rate.Get() << "\n";
+  //std::cout << " Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
+  std::cout << " Bytes Received: \t" << sink->GetTotalRx() << "\n";
+  std::cout << " Throughput: \t\t" << sink->GetTotalRx() / 1024 / 15 << " KiloBytes/sec \n";
   Simulator::Destroy ();
 };
 
@@ -213,6 +222,7 @@ RoutingExample::installInternetStack(){
   interfaces = address.Assign (devices);
 };
 
+/*
 void 
 RoutingExample::installApplications(){
   
@@ -241,6 +251,7 @@ RoutingExample::installApplications(){
   sinkApp.Stop(Seconds(totalTime));
 
 };
+*/
 
 void 
 RoutingExample::installOnOffApplications(){
@@ -248,13 +259,46 @@ RoutingExample::installOnOffApplications(){
   int m_nconn = 625;
   double start_time, stop_time, duration;
 
-
   ApplicationContainer apps [m_nconn];
+  ApplicationContainer sink_apps [m_nconn];
 
   Ptr<UniformRandomVariable> a = CreateObject<UniformRandomVariable>();
   a->SetAttribute("Min", DoubleValue (50));
   a->SetAttribute("Max", DoubleValue(totalTime-15));
 
+  start_time = a->GetValue();
+  Ptr<ExponentialRandomVariable> b = CreateObject<ExponentialRandomVariable>();
+  b->SetAttribute("Mean", DoubleValue(30));
+  duration = b->GetValue()+1;
+
+  if ( (start_time + duration) > (totalTime - 10)){
+    stop_time = totalTime-10;
+  }else{
+    stop_time = start_time + duration;
+  }
+  start_time = 10;
+  duration = 20;
+  stop_time = start_time + duration;
+  
+  std::cout << "\n Start_time: \t\t" << start_time << "s";
+  std::cout << "\n Stop_time: \t\t" << stop_time << "s\n";
+  OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (server_node), 9)));
+  //onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1000]"));
+  //onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
+  onoff.SetAttribute ("PacketSize", UintegerValue(packet_size));
+  onoff.SetAttribute ("DataRate", data_rate);
+  
+  apps[0] = onoff.Install (nodes.Get(client_node));
+  apps[0].Start (Seconds (start_time));
+  apps[0].Stop (Seconds (stop_time));
+  // Create a packet sink to receive the packets
+  PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", InetSocketAddress(interfaces.GetAddress (server_node), 9));
+  sink_apps[0] = sinkHelper.Install (nodes.Get(server_node));
+  sink = StaticCast<PacketSink> (sink_apps[0].Get(0));
+  sink_apps[0].Start(Seconds (start_time));
+  sink_apps[0].Stop(Seconds(stop_time));
+
+/*
   for (int i = 0; i < m_nconn; i++)
   {
     start_time = a->GetValue();
@@ -275,10 +319,11 @@ RoutingExample::installOnOffApplications(){
     apps[i].Start (Seconds (start_time));
     apps[i].Stop (Seconds (stop_time));
     // Create a packet sink to receive the packets
-    /*PacketSinkHelper sink ("ns3::UdpSocketFactory",InetSocketAddress(interfaces.GetAddress (0), 9));
-    ApplicationContainer sinkApp  = sink.Install (nodes.Get (24));
-    sinkApp.Start (Seconds (1.0));*/
+    //PacketSinkHelper sink ("ns3::UdpSocketFactory",InetSocketAddress(interfaces.GetAddress (0), 9));
+    //ApplicationContainer sinkApp  = sink.Install (nodes.Get (24));
+    //sinkApp.Start (Seconds (1.0));
   }
+*/
 
 };
 
