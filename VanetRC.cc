@@ -32,6 +32,9 @@
 #include "ns3/packet-sink-helper.h"
 #include "ns3/onoff-application.h"
 #include "ns3/random-variable-stream.h"
+#include "ns3/flow-monitor.h"
+#include "ns3/flow-monitor-helper.h"
+#include "ns3/ipv4-flow-classifier.h"
 
 using namespace ns3;
 
@@ -58,7 +61,7 @@ class RoutingExample{
     /// Print routes if true
     bool printRoutes = true;
     ///Size of Packet (bytes), Packet interval (Time), Max Packets
-    double packet_size = 2048;
+    double packet_size = 1024;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
     StringValue data_rate = StringValue("448kb/s");
@@ -99,26 +102,16 @@ class RoutingExample{
     void enablePcapTracing ();
     // Calculate the throughput of network
     void calculateThroughput();
+    // Netanim codes
+    void netanimSettings();
 };
-
-int
-main (int argc, char *argv[])
-{
-  // Enable logging for UdpClient and
-  LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
-  LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
- 
-  CommandLine cmd;
-  cmd.Parse (argc, argv);
-
-  RoutingExample app_RE;
-  app_RE.run();
-}
 
 void
 RoutingExample::run(){
   
-  std::string animFile = "xml/test.xml";
+  // Enable logging for UdpClient and
+  LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
+  LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
   createNodes(size);
   createDevices();
@@ -126,29 +119,128 @@ RoutingExample::run(){
   installOnOffApplications();
   if(pcap) enablePcapTracing();
   if(printRoutes) printingRoutingTable();
+  if(anim) netanimSettings();
 
-  if(anim){ 
-    AnimationInterface anim (animFile);
-    anim.EnablePacketMetadata (); // Optional
-    anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
-    anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
-    anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
-    anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
-    anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
-    anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
-    anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
-    anim.SetMaxPktsPerTraceFile(50000);
-    //anim.SetStartTime (Seconds(0.0));
-    //anim.SetStopTime (Seconds(10.0));
-  }
+
+  Ptr<FlowMonitor> flowMonitor;
+  FlowMonitorHelper flowHelper;
+  flowMonitor = flowHelper.InstallAll();
+  /*
+  FlowMonitorHelper flowmonHelper;
+  flowmonHelper.InstallAll ();
+  */
 
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
+
+
   std::cout << " Packet Size: \t\t" << packet_size << " Bytes, " << packet_size / 1024 << " KiloBytes \n";
   std::cout << " Data Rate: \t\t" << data_rate.Get() << "\n";
-  //std::cout << " Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
+  std::cout << " Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
   std::cout << " Bytes Received: \t" << sink->GetTotalRx() << "\n";
-  std::cout << " Throughput: \t\t" << sink->GetTotalRx() / 1024 / 15 << " KiloBytes/sec \n";
+  std::cout << " Throughput: \t\t" << sink->GetTotalRx() / 1024 / 20 << " KiloBytes/sec \n";
+
+  std::cout << "\n--------------------------------------------------------------------------------------------\n";
+
+  flowMonitor->SerializeToXmlFile ("xml/flowmonX.xml", false, false);
+
+  // Define variables to calculate the metrics
+  int k=0;
+  int totaltxPackets = 0;
+  int totalrxPackets = 0;
+  int totaltxPacketsR = 0;
+  int totalrxPacketsR = 0;
+  double totaltxbytes = 0;
+  double totalrxbytes = 0;
+  double totaltxbytesR = 0;
+  double totalrxbytesR = 0;
+  double totaldelay = 0;
+  double totalrxbitrate = 0;
+  double difftx, diffrx;
+  double pdf_value, rxbitrate_value, txbitrate_value, delay_value;
+  double pdf_total, rxbitrate_total, delay_total;
+  double RL_rx_pack, RL_tx_pack, RL_rx_bytes, RL_tx_bytes;
+
+  flowMonitor->CheckForLostPackets();
+  Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
+  std::map<FlowId, FlowMonitor::FlowStats> stats = flowMonitor->GetFlowStats ();
+
+  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
+  {
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+      difftx = i->second.timeLastTxPacket.GetSeconds() - i->second.timeFirstTxPacket.GetSeconds();
+      diffrx = i->second.timeLastRxPacket.GetSeconds() - i->second.timeFirstRxPacket.GetSeconds();
+      pdf_value = (double) i->second.rxPackets / (double) i->second.txPackets * 100;
+      txbitrate_value = (double) i->second.txBytes * 8 / 1024 / difftx;
+      if (i->second.rxPackets != 0){
+          rxbitrate_value = (double) i->second.rxPackets * 1024 * 8 / 1024 / diffrx;
+          delay_value = (double) i->second.delaySum.GetSeconds() / (double) i->second.rxPackets;
+      }
+      else{
+          rxbitrate_value = 0;
+          delay_value = 0;
+      }
+      
+      // We are only interested in the metrics of the data flows. This AODV
+      // implementation create other flows with routing information at low bitrates,
+      // so a margin is defined to ensure that only our data flows are filtered.
+      if ( (!t.destinationAddress.IsSubnetDirectedBroadcast("255.255.255.0")) && (txbitrate_value > 150/1.2) && (rxbitrate_value < 150*1.2))
+      {
+          k++;
+          std::cout << "\nFlow " << k << " (" << t.sourceAddress << " -> "
+          << t.destinationAddress << ")\n";
+          //std::cout << "Tx Packets: " << i->second.txPackets << "\n";
+          //std::cout << "Rx Packets: " << i->second.rxPackets << "\n";
+          //std::cout << "Lost Packets: " << i->second.lostPackets << "\n";
+          //std::cout << "Dropped Packets: " << i->second.packetsDropped.size() << "\n";
+          std::cout << "PDF: " << pdf_value << " %\n";
+          std::cout << "Average delay: " << delay_value << "s\n";
+          std::cout << "Rx bitrate: " << rxbitrate_value << " kbps\n";
+          std::cout << "Tx bitrate: " << txbitrate_value << " kbps\n\n";
+          // Acumulate for average statistics
+          totaltxPackets += i->second.txPackets;
+          totaltxbytes += i->second.txBytes;
+          totalrxPackets += i->second.rxPackets;
+          totaldelay += i->second.delaySum.GetSeconds();
+          totalrxbitrate += rxbitrate_value;
+          totalrxbytes += i->second.rxBytes;
+      }
+      else{
+          totaltxbytesR += i->second.txBytes;
+          totalrxbytesR += i->second.rxBytes;
+          totaltxPacketsR += i->second.txPackets;
+          totalrxPacketsR += i->second.rxPackets;
+      }
+  }
+
+  //Average all nodes statistics
+  if (totaltxPackets != 0){
+      pdf_total = (double) totalrxPackets / (double) totaltxPackets * 100;
+      RL_tx_pack = (double) totaltxPacketsR / (double) totaltxPackets;
+      RL_tx_bytes = totaltxbytesR / totaltxbytes;
+  }
+  else{
+      pdf_total = 0;
+      RL_tx_pack = 0;
+      RL_tx_bytes = 0;
+  }
+  if (totalrxPackets != 0){
+      rxbitrate_total = totalrxbitrate;
+      delay_total = (double) totaldelay / (double) totalrxPackets;
+      RL_rx_pack = (double) totalrxPacketsR / (double) totalrxPackets;
+      RL_rx_bytes = totalrxbytesR / totalrxbytes;
+  }
+  else{
+      rxbitrate_total = 0;
+      delay_total = 0;
+      RL_rx_pack = 0;
+      RL_rx_bytes = 0;
+  }
+  // Print all nodes statistics
+  std::cout << "\nTotal PDF: " << pdf_total << " %\n";
+  std::cout << "Total Rx bitrate: " << rxbitrate_total << " kbps\n";
+  std::cout << "Total Delay: " << delay_total << " s\n";
+
   Simulator::Destroy ();
 };
 
@@ -284,7 +376,7 @@ RoutingExample::installOnOffApplications(){
   std::cout << "\n Stop_time: \t\t" << stop_time << "s\n";
   OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (server_node), 9)));
   //onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1000]"));
-  //onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
+  onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
   onoff.SetAttribute ("PacketSize", UintegerValue(packet_size));
   onoff.SetAttribute ("DataRate", data_rate);
   
@@ -298,7 +390,7 @@ RoutingExample::installOnOffApplications(){
   sink_apps[0].Start(Seconds (start_time));
   sink_apps[0].Stop(Seconds(stop_time));
 
-/*
+  /*
   for (int i = 0; i < m_nconn; i++)
   {
     start_time = a->GetValue();
@@ -323,7 +415,7 @@ RoutingExample::installOnOffApplications(){
     //ApplicationContainer sinkApp  = sink.Install (nodes.Get (24));
     //sinkApp.Start (Seconds (1.0));
   }
-*/
+  */
 
 };
 
@@ -343,6 +435,24 @@ RoutingExample::enablePcapTracing(){
 }
 
 void
+RoutingExample::netanimSettings(){
+  std::string animFile = "xml/test.xml";
+
+  AnimationInterface anim (animFile);
+  anim.EnablePacketMetadata (); // Optional
+  anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
+  anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
+  anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
+  anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
+  anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
+  anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
+  anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
+  anim.SetMaxPktsPerTraceFile(50000);
+  //anim.SetStartTime (Seconds(0.0));
+  //anim.SetStopTime (Seconds(10.0));
+}
+
+void
 RoutingExample::calculateThroughput(){
   
   Time now = Simulator::Now ();                                         // Return the simulator's virtual time.
@@ -351,4 +461,13 @@ RoutingExample::calculateThroughput(){
   lastTotalRx = sink->GetTotalRx ();
   //Simulator::Schedule (MilliSeconds (100), &RoutingExample::calculateThroughput);
   
+}
+
+int
+main (int argc, char *argv[])
+{ 
+  CommandLine cmd;
+  cmd.Parse (argc, argv);
+  RoutingExample app_RE;
+  app_RE.run();
 }
