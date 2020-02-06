@@ -64,11 +64,12 @@ class RoutingExample{
     double packet_size = 1024;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
+    double connections = 5;
     StringValue data_rate = StringValue("448kb/s");
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
-    Ptr<PacketSink> sink;
+    Ptr<PacketSink> sink[5];
     //The value of the last total received bytes
     uint64_t lastTotalRx = 0;
 
@@ -125,6 +126,7 @@ RoutingExample::run(){
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
+
   /*
   FlowMonitorHelper flowmonHelper;
   flowmonHelper.InstallAll ();
@@ -133,16 +135,20 @@ RoutingExample::run(){
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
 
-
+  std::cout << "\n------------------------------Measurement With 'SinkHelper'-------------------------------------------------\n";
   std::cout << " Packet Size: \t\t" << packet_size << " Bytes, " << packet_size / 1024 << " KiloBytes \n";
-  std::cout << " Data Rate: \t\t" << data_rate.Get() << "\n";
-  std::cout << " Packets Received: \t" << sink->GetTotalRx() / double(packet_size) << "\n";
-  std::cout << " Bytes Received: \t" << sink->GetTotalRx() << "\n";
-  std::cout << " Throughput: \t\t" << sink->GetTotalRx() / 1024 / 20 << " KiloBytes/sec \n";
+  std::cout << " Data Rate: \t\t" << data_rate.Get() << "\n\n";
+
+  for (size_t i = 0; i < 5; i++)
+  {
+    std::cout << " Packets Received: \t" << sink[i]->GetTotalRx() / double(packet_size) << "\n";
+    std::cout << " Bytes Received: \t" << sink[i]->GetTotalRx() << "\n";
+    std::cout << " Throughput: \t\t" << sink[i]->GetTotalRx() / 1024 / 20 << " KiloBytes/sec \n\n";
+  }
 
   std::cout << "\n--------------------------------------------------------------------------------------------\n";
 
-  flowMonitor->SerializeToXmlFile ("xml/flowmonX.xml", false, false);
+  flowMonitor->SerializeToXmlFile ("xml/flowmonX.xml", false, true);
 
   // Define variables to calculate the metrics
   int k=0;
@@ -351,45 +357,59 @@ RoutingExample::installOnOffApplications(){
   int m_nconn = 625;
   double start_time, stop_time, duration;
 
-  ApplicationContainer apps [m_nconn];
-  ApplicationContainer sink_apps [m_nconn];
 
   Ptr<UniformRandomVariable> a = CreateObject<UniformRandomVariable>();
   a->SetAttribute("Min", DoubleValue (50));
   a->SetAttribute("Max", DoubleValue(totalTime-15));
 
-  start_time = a->GetValue();
-  Ptr<ExponentialRandomVariable> b = CreateObject<ExponentialRandomVariable>();
-  b->SetAttribute("Mean", DoubleValue(30));
-  duration = b->GetValue()+1;
+  Ptr<UniformRandomVariable> rand_nodes = CreateObject<UniformRandomVariable>();
+  rand_nodes->SetAttribute("Min", DoubleValue (0));
+  rand_nodes->SetAttribute("Max", DoubleValue(size-1));
 
-  if ( (start_time + duration) > (totalTime - 10)){
-    stop_time = totalTime-10;
-  }else{
-    stop_time = start_time + duration;
+  ApplicationContainer apps [m_nconn];
+  ApplicationContainer sink_apps [m_nconn];
+  for (int i = 0; i < 5; i++)
+  {
+
+    start_time = a->GetValue();
+    Ptr<ExponentialRandomVariable> b = CreateObject<ExponentialRandomVariable>();
+    b->SetAttribute("Mean", DoubleValue(30));
+    duration = b->GetValue()+1;
+
+    if ( (start_time + duration) > (totalTime - 10)){
+      stop_time = totalTime-10;
+    }else{
+      stop_time = start_time + duration;
+    }
+
+    server_node = rand_nodes->GetInteger (0,size-1);
+    // Set random variables of the source (client)
+    client_node = rand_nodes->GetInteger (0,size-1);
+    // Client and server can not be the same node.
+    while (client_node == server_node){
+    client_node = rand_nodes->GetInteger (0,size-1);
+    }
+
+    std::cout << "\n Packet Flow: \t\t" << client_node << " to " << server_node;
+    std::cout << "\n Start_time: \t\t" << start_time << "s";
+    std::cout << "\n Stop_time: \t\t" << stop_time << "s\n";
+
+    OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (server_node), 9)));
+    //onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1000]"));
+    onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
+    onoff.SetAttribute ("PacketSize", UintegerValue(packet_size));
+    onoff.SetAttribute ("DataRate", data_rate);
+    
+    apps[i] = onoff.Install (nodes.Get(client_node));
+    apps[i].Start (Seconds (start_time));
+    apps[i].Stop (Seconds (stop_time));
+    // Create a packet sink to receive the packets
+    PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", InetSocketAddress(interfaces.GetAddress (server_node), 9));
+    sink_apps[i] = sinkHelper.Install (nodes.Get(server_node));
+    sink[i] = StaticCast<PacketSink> (sink_apps[0].Get(0));
+    sink_apps[i].Start(Seconds (start_time));
+    sink_apps[i].Stop(Seconds(stop_time));
   }
-  start_time = 10;
-  duration = 20;
-  stop_time = start_time + duration;
-  
-  std::cout << "\n Start_time: \t\t" << start_time << "s";
-  std::cout << "\n Stop_time: \t\t" << stop_time << "s\n";
-  OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (server_node), 9)));
-  //onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1000]"));
-  onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
-  onoff.SetAttribute ("PacketSize", UintegerValue(packet_size));
-  onoff.SetAttribute ("DataRate", data_rate);
-  
-  apps[0] = onoff.Install (nodes.Get(client_node));
-  apps[0].Start (Seconds (start_time));
-  apps[0].Stop (Seconds (stop_time));
-  // Create a packet sink to receive the packets
-  PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", InetSocketAddress(interfaces.GetAddress (server_node), 9));
-  sink_apps[0] = sinkHelper.Install (nodes.Get(server_node));
-  sink = StaticCast<PacketSink> (sink_apps[0].Get(0));
-  sink_apps[0].Start(Seconds (start_time));
-  sink_apps[0].Stop(Seconds(stop_time));
-
   /*
   for (int i = 0; i < m_nconn; i++)
   {
@@ -456,9 +476,9 @@ void
 RoutingExample::calculateThroughput(){
   
   Time now = Simulator::Now ();                                         // Return the simulator's virtual time.
-  double cur = (sink->GetTotalRx () - lastTotalRx) * (double) 8 / 1e5;     // Convert Application RX Packets to MBits.
+  double cur = (sink[0]->GetTotalRx () - lastTotalRx) * (double) 8 / 1e5;     // Convert Application RX Packets to MBits.
   std::cout << now.GetSeconds () << "s: \t" << cur << " Mbit/s" << std::endl;
-  lastTotalRx = sink->GetTotalRx ();
+  lastTotalRx = sink[0]->GetTotalRx ();
   //Simulator::Schedule (MilliSeconds (100), &RoutingExample::calculateThroughput);
   
 }
