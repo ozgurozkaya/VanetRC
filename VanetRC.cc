@@ -48,8 +48,7 @@ class RoutingExample{
     // parameters
     /// Number of nodes
     uint32_t size = 25;
-    uint32_t server_node = 0;
-    uint32_t client_node = size-1;
+    uint32_t server_node, client_node;
     /// Distance between nodes, meters
     //double step = 25;
     /// Simulation time, seconds
@@ -64,12 +63,12 @@ class RoutingExample{
     double packet_size = 1024;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
-    double connections = 5;
+    uint32_t connections = 5;
     StringValue data_rate = StringValue("448kb/s");
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
-    Ptr<PacketSink> sink[5];
+    Ptr<PacketSink> sink[20];
     //The value of the last total received bytes
     uint64_t lastTotalRx = 0;
 
@@ -122,10 +121,12 @@ RoutingExample::run(){
   if(printRoutes) printingRoutingTable();
   if(anim) netanimSettings();
 
-
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
+  std::string file_path = "xml/flowmonitor/flowmon-";
+  file_path += std::to_string(connections);
+  file_path += ".xml";
 
   /*
   FlowMonitorHelper flowmonHelper;
@@ -135,20 +136,21 @@ RoutingExample::run(){
   Simulator::Stop (Seconds (totalTime));
   Simulator::Run ();
 
-  std::cout << "\n------------------------------Measurement With 'SinkHelper'-------------------------------------------------\n";
+  std::cout << "\n------------------------------Measurement With 'SinkHelper'-------------------------------------\n\n";
+
   std::cout << " Packet Size: \t\t" << packet_size << " Bytes, " << packet_size / 1024 << " KiloBytes \n";
   std::cout << " Data Rate: \t\t" << data_rate.Get() << "\n\n";
-
-  for (size_t i = 0; i < 5; i++)
+  /*
+  for (uint32_t i = 0; i < connections; i++)
   {
     std::cout << " Packets Received: \t" << sink[i]->GetTotalRx() / double(packet_size) << "\n";
     std::cout << " Bytes Received: \t" << sink[i]->GetTotalRx() << "\n";
     std::cout << " Throughput: \t\t" << sink[i]->GetTotalRx() / 1024 / 20 << " KiloBytes/sec \n\n";
   }
-
+  */
   std::cout << "\n--------------------------------------------------------------------------------------------\n";
 
-  flowMonitor->SerializeToXmlFile ("xml/flowmonX.xml", false, true);
+  flowMonitor->SerializeToXmlFile (file_path, false, true);
 
   // Define variables to calculate the metrics
   int k=0;
@@ -166,6 +168,7 @@ RoutingExample::run(){
   double pdf_value, rxbitrate_value, txbitrate_value, delay_value;
   double pdf_total, rxbitrate_total, delay_total;
   double RL_rx_pack, RL_tx_pack, RL_rx_bytes, RL_tx_bytes;
+  
 
   flowMonitor->CheckForLostPackets();
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
@@ -179,7 +182,7 @@ RoutingExample::run(){
       pdf_value = (double) i->second.rxPackets / (double) i->second.txPackets * 100;
       txbitrate_value = (double) i->second.txBytes * 8 / 1024 / difftx;
       if (i->second.rxPackets != 0){
-          rxbitrate_value = (double) i->second.rxPackets * 1024 * 8 / 1024 / diffrx;
+          rxbitrate_value = (double) i->second.rxPackets * packet_size * 8 / 1024 / diffrx;
           delay_value = (double) i->second.delaySum.GetSeconds() / (double) i->second.rxPackets;
       }
       else{
@@ -190,7 +193,7 @@ RoutingExample::run(){
       // We are only interested in the metrics of the data flows. This AODV
       // implementation create other flows with routing information at low bitrates,
       // so a margin is defined to ensure that only our data flows are filtered.
-      if ( (!t.destinationAddress.IsSubnetDirectedBroadcast("255.255.255.0")) && (txbitrate_value > 150/1.2) && (rxbitrate_value < 150*1.2))
+      if ( (!t.destinationAddress.IsSubnetDirectedBroadcast("255.255.255.0")) && (txbitrate_value > 448/1.2) && (rxbitrate_value < 448*1.2))
       {
           k++;
           std::cout << "\nFlow " << k << " (" << t.sourceAddress << " -> "
@@ -354,9 +357,7 @@ RoutingExample::installApplications(){
 void 
 RoutingExample::installOnOffApplications(){
   
-  int m_nconn = 625;
   double start_time, stop_time, duration;
-
 
   Ptr<UniformRandomVariable> a = CreateObject<UniformRandomVariable>();
   a->SetAttribute("Min", DoubleValue (50));
@@ -366,9 +367,8 @@ RoutingExample::installOnOffApplications(){
   rand_nodes->SetAttribute("Min", DoubleValue (0));
   rand_nodes->SetAttribute("Max", DoubleValue(size-1));
 
-  ApplicationContainer apps [m_nconn];
-  ApplicationContainer sink_apps [m_nconn];
-  for (int i = 0; i < 5; i++)
+  ApplicationContainer apps [connections];
+  for (uint32_t i = 0; i < connections; i++)
   {
 
     start_time = a->GetValue();
@@ -387,7 +387,7 @@ RoutingExample::installOnOffApplications(){
     client_node = rand_nodes->GetInteger (0,size-1);
     // Client and server can not be the same node.
     while (client_node == server_node){
-    client_node = rand_nodes->GetInteger (0,size-1);
+      client_node = rand_nodes->GetInteger (0,size-1);
     }
 
     std::cout << "\n Packet Flow: \t\t" << client_node << " to " << server_node;
@@ -403,39 +403,15 @@ RoutingExample::installOnOffApplications(){
     apps[i] = onoff.Install (nodes.Get(client_node));
     apps[i].Start (Seconds (start_time));
     apps[i].Stop (Seconds (stop_time));
+    /*
     // Create a packet sink to receive the packets
     PacketSinkHelper sinkHelper ("ns3::UdpSocketFactory", InetSocketAddress(interfaces.GetAddress (server_node), 9));
-    sink_apps[i] = sinkHelper.Install (nodes.Get(server_node));
-    sink[i] = StaticCast<PacketSink> (sink_apps[0].Get(0));
-    sink_apps[i].Start(Seconds (start_time));
-    sink_apps[i].Stop(Seconds(stop_time));
+    apps[i] = sinkHelper.Install (nodes.Get(server_node));
+    sink[i] = StaticCast<PacketSink> (apps[i].Get(0));
+    apps[i].Start(Seconds (start_time));
+    apps[i].Stop(Seconds(stop_time));
+    */
   }
-  /*
-  for (int i = 0; i < m_nconn; i++)
-  {
-    start_time = a->GetValue();
-    Ptr<ExponentialRandomVariable> b = CreateObject<ExponentialRandomVariable>();
-    b->SetAttribute("Mean", DoubleValue(30));
-    duration = b->GetValue()+1;
-
-    if ( (start_time + duration) > (totalTime - 10)){
-      stop_time = totalTime-10;
-    }else{
-      stop_time = start_time + duration;
-    }
-
-    OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (0), 9)));
-    //onoff.SetAttribute ("OnTime", DoubleValue(5));
-    //onoff.SetAttribute ("OffTime", DoubleValue(15));
-    apps[i] = onoff.Install (nodes.Get(24));
-    apps[i].Start (Seconds (start_time));
-    apps[i].Stop (Seconds (stop_time));
-    // Create a packet sink to receive the packets
-    //PacketSinkHelper sink ("ns3::UdpSocketFactory",InetSocketAddress(interfaces.GetAddress (0), 9));
-    //ApplicationContainer sinkApp  = sink.Install (nodes.Get (24));
-    //sinkApp.Start (Seconds (1.0));
-  }
-  */
 
 };
 
@@ -472,6 +448,7 @@ RoutingExample::netanimSettings(){
   //anim.SetStopTime (Seconds(10.0));
 }
 
+/*
 void
 RoutingExample::calculateThroughput(){
   
@@ -482,6 +459,7 @@ RoutingExample::calculateThroughput(){
   //Simulator::Schedule (MilliSeconds (100), &RoutingExample::calculateThroughput);
   
 }
+*/
 
 int
 main (int argc, char *argv[])
