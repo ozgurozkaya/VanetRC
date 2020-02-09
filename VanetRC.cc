@@ -35,6 +35,7 @@
 #include "ns3/flow-monitor.h"
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-flow-classifier.h"
+#include "ns3/rng-seed-manager.h"
 
 using namespace ns3;
 
@@ -350,7 +351,9 @@ RoutingExample::installApplications(){
 
 void 
 RoutingExample::installOnOffApplications(){
-  
+
+  RngSeedManager::SetSeed(5);
+
   double start_time, stop_time, duration;
 
   Ptr<UniformRandomVariable> a = CreateObject<UniformRandomVariable>();
