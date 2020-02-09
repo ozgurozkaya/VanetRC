@@ -63,8 +63,8 @@ class RoutingExample{
     double packet_size = 1024;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
-    uint32_t connections = 5;
-    StringValue data_rate = StringValue("448kb/s");
+    uint32_t connections = 20;
+    StringValue data_rate = StringValue("150kb/s");
     //Internet Stack Helper
     InternetStackHelper stack;
     //Pointer to the packet sink application 
@@ -193,7 +193,7 @@ RoutingExample::run(){
       // We are only interested in the metrics of the data flows. This AODV
       // implementation create other flows with routing information at low bitrates,
       // so a margin is defined to ensure that only our data flows are filtered.
-      if ( (!t.destinationAddress.IsSubnetDirectedBroadcast("255.255.255.0")) && (txbitrate_value > 448/1.2) && (rxbitrate_value < 448*1.2))
+      if ( (!t.destinationAddress.IsSubnetDirectedBroadcast("255.255.255.0")) && (txbitrate_value > 150/1.2) && (rxbitrate_value < 150*1.2))
       {
           k++;
           std::cout << "\nFlow " << k << " (" << t.sourceAddress << " -> "
@@ -284,11 +284,11 @@ RoutingExample::createDevices(){
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
   
-  //wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
-  //Ekleyince çalışmıyor !!!!
+  wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   //wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent", StringValue ("2.7"));
 
-
+  wifiPhy.Set ("RxSensitivity", DoubleValue (-89.0) );
+  wifiPhy.Set ("CcaEdThreshold", DoubleValue (-62.0) );
   wifiPhy.Set ("TxGain", DoubleValue (1.0) );
   wifiPhy.Set ("RxGain", DoubleValue (1.0) );
   wifiPhy.Set ("TxPowerLevels", UintegerValue (1) );
@@ -323,6 +323,7 @@ RoutingExample::installInternetStack(){
   interfaces = address.Assign (devices);
 };
 
+
 /*
 void 
 RoutingExample::installApplications(){
@@ -330,27 +331,20 @@ RoutingExample::installApplications(){
   UdpEchoServerHelper echoServer (9);
   
   ApplicationContainer serverApps = echoServer.Install (nodes.Get (server_node));
-
   UdpEchoClientHelper echoClient (interfaces.GetAddress (server_node), 9);
   echoClient.SetAttribute ("MaxPackets", UintegerValue (max_packets));
   //echoClient.SetAttribute ("Interval", TimeValue (packet_interval));
   echoClient.SetAttribute ("PacketSize", UintegerValue (packet_size));
-
   ApplicationContainer clientApps = echoClient.Install (nodes.Get (client_node));
-
   PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",  InetSocketAddress (interfaces.GetAddress (server_node), 9));
   ApplicationContainer sinkApp = sinkHelper.Install (nodes.Get(server_node));
-
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (totalTime));
-
   clientApps.Start (Seconds (1.0));
   clientApps.Stop (Seconds (totalTime));
-
   sink = StaticCast<PacketSink> (sinkApp.Get (server_node));
   sinkApp.Start (Seconds (1.0));
   sinkApp.Stop(Seconds(totalTime));
-
 };
 */
 
@@ -395,7 +389,7 @@ RoutingExample::installOnOffApplications(){
     std::cout << "\n Stop_time: \t\t" << stop_time << "s\n";
 
     OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress(interfaces.GetAddress (server_node), 9)));
-    //onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1000]"));
+    onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
     onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));;
     onoff.SetAttribute ("PacketSize", UintegerValue(packet_size));
     onoff.SetAttribute ("DataRate", data_rate);
