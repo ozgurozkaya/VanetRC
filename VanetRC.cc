@@ -44,27 +44,33 @@ NS_LOG_COMPONENT_DEFINE ("VanetRC");
 class RoutingExample{
   public:
     void run();
+    // argc & argv configuration
+    void configuration(int argc, char ** argv);
+
+    // Number of nodes
+    uint32_t size = 25;
+    // Seed Value
+    uint32_t seed = 1;
+    // Number of Connections
+    uint32_t connections = 5;
 
   private:
     // parameters
-    /// Number of nodes
-    uint32_t size = 25;
     uint32_t server_node, client_node;
-    /// Distance between nodes, meters
+    // Distance between nodes, meters
     //double step = 25;
-    /// Simulation time, seconds
+    // Simulation time, seconds
     double totalTime = 180;
     double duration;
-    /// Write per-device PCAP traces if true & net-anim file generate
+    // Write per-device PCAP traces if true & net-anim file generate
     bool pcap = true;
     bool anim = false;
-    /// Print routes if true
+    // Print routes if true
     bool printRoutes = true;
-    ///Size of Packet (bytes), Packet interval (Time), Max Packets
+    //Size of Packet (bytes), Packet interval (Time), Max Packets
     double packet_size = 1024;
     Time packet_interval = MilliSeconds (1000);
     double max_packets = 250;
-    uint32_t connections = 20;
     StringValue data_rate = StringValue("150kb/s");
     //Internet Stack Helper
     InternetStackHelper stack;
@@ -72,7 +78,6 @@ class RoutingExample{
     Ptr<PacketSink> sink[20];
     //The value of the last total received bytes
     uint64_t lastTotalRx = 0;
-
     //Routing Method
     AodvHelper routing;
     //OlsrHelper routing;
@@ -80,21 +85,21 @@ class RoutingExample{
     // you can configure AODV attributes here using aodv.Set(name, value)
 
   // network
-  /// nodes used in the example
+  // nodes used in the example
   NodeContainer nodes;
-  /// devices used in the example
+  // devices used in the example
   NetDeviceContainer devices;
-  /// interfaces used in the example
+  // interfaces used in the example
   Ipv4InterfaceContainer interfaces;
   
   private:
-    /// Create the nodes (i -> quantity)
+    // Create the nodes (i -> quantity)
     void createNodes (int i);
-    /// Create the devices
+    // Create the devices
     void createDevices ();
-    /// Create the network
+    // Create the network
     void installInternetStack ();
-    /// Create the simulation applications
+    // Create the simulation applications
     void installApplications ();
     void installOnOffApplications ();
     // Saves all nodes' routing tables in a txt file
@@ -105,6 +110,7 @@ class RoutingExample{
     void calculateThroughput();
     // Netanim codes
     void netanimSettings();
+    
 };
 
 void
@@ -251,8 +257,22 @@ RoutingExample::run(){
   std::cout << "Total Rx bitrate: " << rxbitrate_total << " kbps\n";
   std::cout << "Total Delay: " << delay_total << " s\n";
 
+  // file pointer 
+  std::fstream fout; 
+  // opens an existing csv file or creates a new file. 
+  fout.open("xml/VanetRC-report.csv", std::ios::out | std::ios::app);
+  fout << connections << "," << seed << "," << pdf_total << "," << rxbitrate_total << "\n";
+
   Simulator::Destroy ();
 };
+
+void RoutingExample::configuration(int argc, char ** argv){
+  CommandLine cmd;
+  cmd.AddValue("size", "Number of nodes", size);
+  cmd.AddValue("seed", "Value of seed", seed);
+  cmd.AddValue("connections", "Number of connections", connections);
+  cmd.Parse (argc, argv);
+}
 
 void
 RoutingExample::createNodes(int i){
@@ -352,7 +372,7 @@ RoutingExample::installApplications(){
 void 
 RoutingExample::installOnOffApplications(){
 
-  RngSeedManager::SetSeed(5);
+  RngSeedManager::SetSeed(seed);
 
   double start_time, stop_time, duration;
 
@@ -460,9 +480,8 @@ RoutingExample::calculateThroughput(){
 
 int
 main (int argc, char *argv[])
-{ 
-  CommandLine cmd;
-  cmd.Parse (argc, argv);
+{   
   RoutingExample app_RE;
+  app_RE.configuration(argc, argv);
   app_RE.run();
 }
