@@ -46,7 +46,6 @@ class RoutingExample{
     void run();
     // argc & argv configuration
     void configuration(int argc, char ** argv);
-
     // Number of nodes
     uint32_t size = 25;
     // Seed Value
@@ -285,8 +284,8 @@ RoutingExample::createNodes(int i){
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
   "MinX", DoubleValue (0.0),
   "MinY", DoubleValue (0.0),
-  "DeltaX", DoubleValue (65),
-  "DeltaY", DoubleValue (65),
+  "DeltaX", DoubleValue (150),
+  "DeltaY", DoubleValue (150),
   "GridWidth", UintegerValue (5),
   "LayoutType", StringValue ("RowFirst"));
 
@@ -304,7 +303,7 @@ RoutingExample::createDevices(){
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
-  
+
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   //wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel","Exponent", StringValue ("2.7"));
 
@@ -313,8 +312,8 @@ RoutingExample::createDevices(){
   wifiPhy.Set ("TxGain", DoubleValue (1.0) );
   wifiPhy.Set ("RxGain", DoubleValue (1.0) );
   wifiPhy.Set ("TxPowerLevels", UintegerValue (1) );
-  wifiPhy.Set ("TxPowerEnd", DoubleValue (18) );
-  wifiPhy.Set ("TxPowerStart", DoubleValue (18) );
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (30) );
+  wifiPhy.Set ("TxPowerStart", DoubleValue (30) );
   wifiPhy.Set ("RxNoiseFigure", DoubleValue (7.0) );
   wifiPhy.SetChannel (wifiChannel.Create ());
   
