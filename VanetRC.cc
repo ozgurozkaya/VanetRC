@@ -36,6 +36,8 @@
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-flow-classifier.h"
 #include "ns3/rng-seed-manager.h"
+#include "modify/modified_Node.h"
+#include "modify/modified_NodeContainer.h"
 
 using namespace ns3;
 
@@ -59,7 +61,7 @@ class RoutingExample{
     // Distance between nodes, meters
     //double step = 25;
     // Simulation time, seconds
-    double totalTime = 180;
+    double totalTime = 60;
     double duration;
     // Write per-device PCAP traces if true & net-anim file generate
     bool pcap = true;
@@ -85,7 +87,7 @@ class RoutingExample{
 
   // network
   // nodes used in the example
-  NodeContainer nodes;
+  modified_NodeContainer nodes;
   // devices used in the example
   NetDeviceContainer devices;
   // interfaces used in the example
@@ -107,8 +109,6 @@ class RoutingExample{
     void enablePcapTracing ();
     // Calculate the throughput of network
     void calculateThroughput();
-    // Netanim codes
-    void netanimSettings();
     
 };
 
@@ -125,7 +125,16 @@ RoutingExample::run(){
   installOnOffApplications();
   if(pcap) enablePcapTracing();
   if(printRoutes) printingRoutingTable();
-  if(anim) netanimSettings();
+  if(anim){
+    AnimationInterface anim (std::string("xml/test.xml"));
+    anim.EnablePacketMetadata (); // Optional
+    anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (60)); //Optional
+    //anim.EnableWifiMacCounters (Seconds (0), Seconds (totalTime)); //Optional
+    //anim.EnableWifiPhyCounters (Seconds (0), Seconds (totalTime)); //Optional
+    //anim.SetMaxPktsPerTraceFile(500000);
+    anim.SetStartTime (Seconds(0.0));
+    anim.SetStopTime (Seconds(10.0));
+  }
 
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
@@ -397,6 +406,8 @@ RoutingExample::installOnOffApplications(){
     }else{
       stop_time = start_time + duration;
     }
+    start_time = 15;
+    stop_time = 25;
 
     server_node = rand_nodes->GetInteger (0,size-1);
     // Set random variables of the source (client)
@@ -433,12 +444,20 @@ RoutingExample::installOnOffApplications(){
 
 void
 RoutingExample::printingRoutingTable(){
-  Time rtt = Seconds(20.0);
-  AsciiTraceHelper ascii;
-  Ptr<OutputStreamWrapper> rtw = ascii.CreateFileStream ("xml/routing_table");
+  Time rtt1 = Seconds(15.0);
+  AsciiTraceHelper ascii1;
+  Ptr<OutputStreamWrapper> rtw1 = ascii1.CreateFileStream ("xml/routing_table1");
+  routing.PrintRoutingTableAllAt(rtt1,rtw1);
 
-  routing.PrintRoutingTableAllAt(rtt,rtw);
-
+  Time rtt2 = Seconds(16.0);
+  AsciiTraceHelper ascii2;
+  Ptr<OutputStreamWrapper> rtw2 = ascii2.CreateFileStream ("xml/routing_table2");
+  routing.PrintRoutingTableAllAt(rtt2,rtw2);
+  
+  Time rtt3 = Seconds(30.0);
+  AsciiTraceHelper ascii3;
+  Ptr<OutputStreamWrapper> rtw3 = ascii3.CreateFileStream ("xml/routing_table3");
+  routing.PrintRoutingTableAllAt(rtt3,rtw3);
 };
 
 void
@@ -446,29 +465,11 @@ RoutingExample::enablePcapTracing(){
   stack.EnablePcapIpv4All ("xml/pcap/internet"); // gets pcap files of all nodes
 }
 
-void
-RoutingExample::netanimSettings(){
-  std::string animFile = "xml/test.xml";
-
-  AnimationInterface anim (animFile);
-  anim.EnablePacketMetadata (); // Optional
-  anim.EnableIpv4RouteTracking ("xml/vanetRC-routingtable.xml", Seconds (0), Seconds (5), Seconds (0.25)); //Optional
-  anim.UpdateNodeDescription (nodes.Get (server_node), "Server"); // Optional
-  anim.UpdateNodeColor (nodes.Get (server_node), 0, 255, 0); // Optional
-  anim.UpdateNodeDescription (nodes.Get (client_node), "Client"); // Optional
-  anim.UpdateNodeColor (nodes.Get (client_node), 0, 0, 255); // Optional
-  anim.EnableWifiMacCounters (Seconds (0), Seconds (180)); //Optional
-  anim.EnableWifiPhyCounters (Seconds (0), Seconds (180)); //Optional
-  anim.SetMaxPktsPerTraceFile(50000);
-  //anim.SetStartTime (Seconds(0.0));
-  //anim.SetStopTime (Seconds(10.0));
-}
-
 /*
 void
 RoutingExample::calculateThroughput(){
   
-  Time now = Simulator::Now ();                                         // Return the simulator's virtual time.
+  Time now = Simulator::Now ();                                               // Return the simulator's virtual time.
   double cur = (sink[0]->GetTotalRx () - lastTotalRx) * (double) 8 / 1e5;     // Convert Application RX Packets to MBits.
   std::cout << now.GetSeconds () << "s: \t" << cur << " Mbit/s" << std::endl;
   lastTotalRx = sink[0]->GetTotalRx ();
