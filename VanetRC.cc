@@ -36,14 +36,63 @@
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-flow-classifier.h"
 #include "ns3/rng-seed-manager.h"
-#include "modify/modified_Node.h"
-#include "modify/modified_NodeContainer.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("VanetRC");
 
-class RoutingExample{
+
+/*
+class modified_Node : public Node
+{
+  private:
+    //data
+    uint32_t condition;
+      
+  public:
+    modified_Node();
+
+    modified_Node(uint32_t);
+    ~modified_Node();
+
+    uint32_t getCondition();
+};
+
+class modified_NodeContainer : public NodeContainer
+{
+  private:
+    // data
+    std::vector<Ptr<modified_Node> > m_nodes; //!< Nodes smart pointers
+  public:
+    modified_NodeContainer();
+    ~modified_NodeContainer();
+    void Create (uint32_t n);
+};
+
+modified_Node::modified_Node ()
+: condition (0) {}
+
+modified_Node::modified_Node (uint32_t c)
+: condition (c) {}
+
+uint32_t
+modified_Node::getCondition()
+{
+    return condition;
+}
+
+void
+modified_NodeContainer::Create (uint32_t n)
+{
+  for (uint32_t i = 0; i < n; i++)
+    {
+      m_nodes.push_back (CreateObject<modified_Node> ());
+    }
+}
+*/
+
+class RoutingExample
+{
   public:
     void run();
     // argc & argv configuration
@@ -85,13 +134,13 @@ class RoutingExample{
     //DsdvHelper routing;
     // you can configure AODV attributes here using aodv.Set(name, value)
 
-  // network
-  // nodes used in the example
-  modified_NodeContainer nodes;
-  // devices used in the example
-  NetDeviceContainer devices;
-  // interfaces used in the example
-  Ipv4InterfaceContainer interfaces;
+    // network
+    // nodes used in the example
+    NodeContainer nodes;
+    // devices used in the example
+    NetDeviceContainer devices;
+    // interfaces used in the example
+    Ipv4InterfaceContainer interfaces;
   
   private:
     // Create the nodes (i -> quantity)
@@ -114,12 +163,27 @@ class RoutingExample{
 
 void
 RoutingExample::run(){
-  
+ 
   // Enable logging for UdpClient and
   LogComponentEnable ("UdpEchoClientApplication", LOG_LEVEL_INFO);
   LogComponentEnable ("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
   createNodes(size);
+
+  
+  Ptr<Node> a = nodes.Get(uint32_t(18));
+  Ptr<Node> b = nodes.Get(uint32_t(2));
+  a->SetCondition(uint32_t(5));
+  b->SetCondition(uint32_t(5));
+  /*
+  Node n = Node();
+  n.SetCondition(uint32_t(5));
+  uint32_t x = n.GetCondition();
+ 
+  std::cout << std::endl << "condition: \t" << x << std::endl;
+  */
+
+
   createDevices();
   installInternetStack();
   installOnOffApplications();
@@ -480,8 +544,10 @@ RoutingExample::calculateThroughput(){
 
 int
 main (int argc, char *argv[])
-{   
+{
+  
   RoutingExample app_RE;
   app_RE.configuration(argc, argv);
   app_RE.run();
+  
 }
